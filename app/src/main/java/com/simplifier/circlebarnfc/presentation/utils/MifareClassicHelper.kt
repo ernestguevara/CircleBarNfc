@@ -1,10 +1,9 @@
 package com.simplifier.circlebarnfc.presentation.utils
 
-import android.content.Context
 import android.nfc.Tag
 import android.nfc.tech.MifareClassic
 import android.util.Log
-import android.widget.Toast
+import com.simplifier.circlebarnfc.main
 import com.simplifier.circlebarnfc.presentation.MainViewModel
 import java.io.IOException
 
@@ -25,10 +24,34 @@ object MifareClassicHelper {
         return mifareClassic
     }
 
+    fun polling(mainViewModel: MainViewModel, tag: Tag?) {
+        if (tag != null) {
+            val mifareClassic = getMifareInstance(tag)
+
+            try {
+                mifareClassic.connect()
+                //do nothing as tag is present
+                Log.i(TAG, "handleMifareClassic: tag connected")
+            } catch (e: IOException) {
+                Log.i(TAG, "handleMifareClassic: IO Exception")
+                mainViewModel.setMessage("Please check card connection")
+                mainViewModel.tagRemoved()
+            } catch (e: Exception) {
+                Log.i(TAG, "Error reading data: ${e.message}")
+                mainViewModel.setMessage("Error reading data: ${e.message}")
+            } finally {
+                mifareClassic.close()
+            }
+        } else {
+            //no tag
+            Log.i(TAG, "handleMifareClassic: no tag")
+            mainViewModel.tagRemoved()
+        }
+    }
+
     fun handleMifareClassic(
         mainViewModel: MainViewModel,
         mifareClassic: MifareClassic?,
-        context: Context,
         operations: (MifareClassic) -> Unit
     ) {
         mifareClassic?.let {
@@ -40,26 +63,15 @@ object MifareClassicHelper {
                         mainViewModel.setAuthentication(true)
                         operations.invoke(mifareClassic)
                     } else {
+                        mainViewModel.setMessage("Invalid Access!\nPlease check your card...")
                         mainViewModel.setAuthentication(false)
                         Log.i(TAG, "handleMifareClassic: authentication failed")
                     }
                 } catch (e: IOException) {
                     Log.i(TAG, "handleMifareClassic: IO Exception")
-                    CoroutineHelper.runOnMainThread {
-                        Toast.makeText(
-                            context,
-                            "Please check card connection",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
+                    mainViewModel.setMessage("Please Tap Card")
                 } catch (e: Exception) {
-                    CoroutineHelper.runOnMainThread {
-                        Toast.makeText(
-                            context,
-                            "Error reading data: ${e.message}",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
+                    mainViewModel.setMessage("Error reading data: ${e.message}")
                 } finally {
                     mifareClassic.close()
                 }
