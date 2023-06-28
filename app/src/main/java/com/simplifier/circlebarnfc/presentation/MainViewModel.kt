@@ -1,21 +1,23 @@
 package com.simplifier.circlebarnfc.presentation
 
-import android.content.Context
 import android.content.Intent
 import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.nfc.tech.MifareClassic
 import android.util.Log
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
 import com.simplifier.circlebarnfc.byteArrayToDecimal
 import com.simplifier.circlebarnfc.domain.model.CustomerModel
 import com.simplifier.circlebarnfc.presentation.utils.ConversionHelper
 import com.simplifier.circlebarnfc.presentation.utils.ConversionHelper.bytesToHexStringWithSpace
 import com.simplifier.circlebarnfc.presentation.utils.MifareClassicHelper
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 class MainViewModel : ViewModel() {
 
@@ -34,6 +36,11 @@ class MainViewModel : ViewModel() {
     private val _isAccess = MutableStateFlow(true)
     val isAccess: StateFlow<Boolean> = _isAccess.asStateFlow()
 
+    private val _customerDetails = MutableStateFlow(CustomerModel())
+    val customerDetails: StateFlow<CustomerModel> = _customerDetails.asStateFlow()
+
+    var customerModel = CustomerModel()
+
     fun setIntent(intent: Intent) {
         if (intent.action == NfcAdapter.ACTION_TAG_DISCOVERED) {
             // NFC card is discovered
@@ -44,6 +51,11 @@ class MainViewModel : ViewModel() {
             if (intentTag?.techList?.contains(MifareClassic::class.java.name) == true) {
                 setTag(intentTag)
             } else {
+                viewModelScope.launch {
+                    setMessage("Card not valid")
+                    delay(2000)
+                    setMessage("Please Tap Card")
+                }
                 Log.i(TAG, "setIntent: not a mifare classic card")
             }
         }
@@ -61,6 +73,8 @@ class MainViewModel : ViewModel() {
         _tag.value = null
         _key.value = Pair(byteArrayOf(0), byteArrayOf(0))
         _authentication.value = false
+        _customerDetails.value = CustomerModel()
+        customerModel = CustomerModel()
     }
 
     fun setAuthentication(auth: Boolean = true) {
@@ -73,6 +87,11 @@ class MainViewModel : ViewModel() {
 
     fun setAccess(isAccess: Boolean) {
         _isAccess.value = isAccess
+    }
+
+    fun setUser(mifareClassic: MifareClassic) {
+        getCustomerInfo(mifareClassic)
+        _customerDetails.value = customerModel
     }
 
     //end section setter
@@ -94,85 +113,17 @@ class MainViewModel : ViewModel() {
         tag?.let {
             val mifareClassic = MifareClassicHelper.getMifareInstance(tag)
 
-            val keys = key.value
-
             MifareClassicHelper.handleMifareClassic(this, mifareClassic) {
-                val customerModel = CustomerModel()
+                getCustomerInfo(mifareClassic)
 
-                if (mifareClassic.authenticateSectorWithKeyB(INFO_SECTOR, keys.second)) {
-                    val nameBlockIndex = mifareClassic.sectorToBlock(INFO_SECTOR) + NAME_BLOCK
-                    val name =
-                        ConversionHelper.hexByteArrayToString(mifareClassic.readBlock(nameBlockIndex))
+                val allPropertiesFilled = checkCustomerFields(customerModel)
 
-                    val tierBlockIndex = mifareClassic.sectorToBlock(INFO_SECTOR) + TIER_BLOCK
-                    val tier = ConversionHelper.hexByteArrayToDecimal(
-                        mifareClassic.readBlock(tierBlockIndex)
-                    )
+                Log.i(TAG, "authenticate: customerModel is all filled $allPropertiesFilled \n model is ${Gson().toJson(customerModel)}")
 
-                    val addressBlockIndex = mifareClassic.sectorToBlock(INFO_SECTOR) + ADDRESS_BLOCK
-                    val address = ConversionHelper.hexByteArrayToString(
-                        mifareClassic.readBlock(addressBlockIndex)
-                    )
-
-                    customerModel.apply {
-                        customerName = name
-                        customerAddress = address
-                        customerTier = tier
-                    }
-
-                    Log.i(TAG, "authenticate: userInfo name: $name tier $tier address $address")
-                }
-
-                if (mifareClassic.authenticateSectorWithKeyB(TRANSACTION_SECTOR, keys.second)) {
-                    val visitBlockIndex =
-                        mifareClassic.sectorToBlock(TRANSACTION_SECTOR) + VISIT_BLOCK
-                    val visit = ConversionHelper.hexByteArrayToDecimal(
-                        mifareClassic.readBlock(visitBlockIndex)
-                    )
-
-                    val balancerBlockIndex =
-                        mifareClassic.sectorToBlock(TRANSACTION_SECTOR) + BALANCE_BLOCK
-                    val balance = ConversionHelper.hexByteArrayToDecimal(
-                        mifareClassic.readBlock(balancerBlockIndex)
-                    )
-
-                    val passFlagBlockIndex =
-                        mifareClassic.sectorToBlock(TRANSACTION_SECTOR) + FLAG_BLOCK
-                    val passFlag = ConversionHelper.hexByteArrayToDecimal(
-                        mifareClassic.readBlock(passFlagBlockIndex)
-                    )
-
-                    customerModel.apply {
-                        customerVisitCount = visit
-                        customerBalance = ConversionHelper.decimalToDoubleWithCents(balance)
-                        customerFlag = passFlag
-                    }
-                    Log.i(
-                        TAG,
-                        "authenticate: transaction visitCount: $visit balance $balance passFlag $passFlag"
-                    )
-                }
-
-                val allPropertiesFilled = listOfNotNull(
-                    customerModel.customerName,
-                    customerModel.customerTier,
-                    customerModel.customerAddress,
-                    customerModel.customerVisitCount,
-                    customerModel.customerBalance,
-                    customerModel.customerFlag
-                ).size == 6
-
-                Log.i(
-                    TAG,
-                    "authenticate: customerModel is all filled $allPropertiesFilled \n model is ${
-                        Gson().toJson(customerModel)
-                    }"
-                )
-
-                if (allPropertiesFilled) {
+                if (checkCustomerFields(customerModel)) {
 //                    setAuthentication(true)
                     setMessage()
-                    checkTransaction(this, mifareClassic, customerModel)
+                    checkTransaction(mifareClassic)
                 } else {
                     setAuthentication(false)
                 }
@@ -180,26 +131,77 @@ class MainViewModel : ViewModel() {
         }
     }
 
+    fun getCustomerInfo(mifareClassic: MifareClassic) {
+        val keys = key.value
+        if (mifareClassic.authenticateSectorWithKeyB(INFO_SECTOR, keys.second)) {
+            val nameBlockIndex = mifareClassic.sectorToBlock(INFO_SECTOR) + NAME_BLOCK
+            val name =
+                ConversionHelper.hexByteArrayToString(mifareClassic.readBlock(nameBlockIndex))
+
+            val tierBlockIndex = mifareClassic.sectorToBlock(INFO_SECTOR) + TIER_BLOCK
+            val tier = ConversionHelper.hexByteArrayToDecimal(
+                mifareClassic.readBlock(tierBlockIndex)
+            )
+
+            val addressBlockIndex = mifareClassic.sectorToBlock(INFO_SECTOR) + ADDRESS_BLOCK
+            val address = ConversionHelper.hexByteArrayToString(
+                mifareClassic.readBlock(addressBlockIndex)
+            )
+
+            customerModel.apply {
+                customerName = name
+                customerAddress = address
+                customerTier = tier
+            }
+
+            Log.i(TAG, "getCustomerInfo: userInfo name: $name tier $tier address $address")
+        }
+
+        if (mifareClassic.authenticateSectorWithKeyB(TRANSACTION_SECTOR, keys.second)) {
+            val visitBlockIndex =
+                mifareClassic.sectorToBlock(TRANSACTION_SECTOR) + VISIT_BLOCK
+            val visit = ConversionHelper.hexByteArrayToDecimal(
+                mifareClassic.readBlock(visitBlockIndex)
+            )
+
+            val balancerBlockIndex =
+                mifareClassic.sectorToBlock(TRANSACTION_SECTOR) + BALANCE_BLOCK
+            val balance = ConversionHelper.hexByteArrayToDecimal(
+                mifareClassic.readBlock(balancerBlockIndex)
+            )
+
+            val passFlagBlockIndex =
+                mifareClassic.sectorToBlock(TRANSACTION_SECTOR) + FLAG_BLOCK
+            val passFlag = ConversionHelper.hexByteArrayToDecimal(
+                mifareClassic.readBlock(passFlagBlockIndex)
+            )
+
+            customerModel.apply {
+                customerVisitCount = visit
+                customerBalance = ConversionHelper.decimalToDoubleWithCents(balance)
+                customerFlag = passFlag
+            }
+            Log.i(TAG, "getCustomerInfo: transaction visitCount: $visit balance $balance passFlag $passFlag")
+        }
+    }
+
     fun checkTransaction(
-        mainViewModel: MainViewModel,
-        mifareClassic: MifareClassic,
-        customerModel: CustomerModel
+        mifareClassic: MifareClassic
     ) {
         when (customerModel.customerFlag) {
             FLAG_LOGGED_OUT -> {
                 Log.i(TAG, "checkTransaction: user is logged out")
                 if (isAccess.value) {
                     Log.i(TAG, "checkTransaction: login the user")
-                    if (changeValueBlock(
-                            mifareClassic,
+                    if (changeValueBlock(mifareClassic,
                             TRANSACTION_SECTOR,
                             BALANCE_BLOCK,
                             3000,
-                            false
-                        )
-                    ) {
+                            false)) {
                         changeFlag(mifareClassic, FLAG_LOGGED_IN)
-                        loginUser(customerModel)
+                        changeValueBlock(mifareClassic, TRANSACTION_SECTOR, VISIT_BLOCK, 1)
+                        setUser(mifareClassic)
+                        setMessage("Welcome to CircleBar!")
                     }
                 } else {
                     Log.i(TAG, "Incorrect access please login at the terminal")
@@ -212,9 +214,11 @@ class MainViewModel : ViewModel() {
                 if (isAccess.value) {
                     Log.i(TAG, "checkTransaction: will logout")
                     changeFlag(mifareClassic, FLAG_LOGGED_OUT)
+                    setMessage("Thank you, please come again!")
                 } else {
                     Log.i(TAG, "checkTransaction: will open the user tab")
                     changeFlag(mifareClassic, FLAG_OPEN_TAB)
+                    setMessage("Opening your tab... \n Balance: ${customerModel.customerBalance}")
                 }
             }
 
@@ -234,13 +238,15 @@ class MainViewModel : ViewModel() {
                         )
                     ) {
                         changeFlag(mifareClassic, FLAG_LOGGED_IN)
+                        setUser(mifareClassic)
+                        setMessage("Bill's settled!")
                     }
                 }
             }
 
             else -> {
                 Log.i(TAG, "checkTransaction: flag error")
-                mainViewModel.setAuthentication(false)
+                setAuthentication(false)
             }
         }
     }
@@ -296,15 +302,8 @@ class MainViewModel : ViewModel() {
         // Read the block data
 
         val valueBlockVal = byteArrayToDecimal(mifareClassic.readBlock(blockAddress))
-        Log.i(
-            TAG,
-            "readDataBlock success data is ${
-                bytesToHexStringWithSpace(
-                    mifareClassic.readBlock(blockAddress)
-                )
-            } " +
-                    "\n decimal value is ${byteArrayToDecimal(mifareClassic.readBlock(blockAddress))}"
-        )
+        Log.i(TAG, "readDataBlock success data is ${bytesToHexStringWithSpace(mifareClassic.readBlock(blockAddress))} "
+                + "\n decimal value is ${byteArrayToDecimal(mifareClassic.readBlock(blockAddress))}")
 
         if (increment && valueBlockVal + value > 65536) {
             //higher than threshold
@@ -324,17 +323,11 @@ class MainViewModel : ViewModel() {
                     mifareClassic.decrement(blockAddress, value)
                 }
                 mifareClassic.transfer(blockAddress)
+
                 Log.i(
                     TAG, "changeValueBlock: increment: $increment success " +
-                            "\n old balance $valueBlockVal" +
-                            "\n new balance ${
-                                byteArrayToDecimal(
-                                    mifareClassic.readBlock(
-                                        blockAddress
-                                    )
-                                )
-                            }"
-                )
+                            "\n old value $valueBlockVal" +
+                            "\n new value ${byteArrayToDecimal(mifareClassic.readBlock(blockAddress))}")
                 return true
             } catch (e: Exception) {
                 // Increment operation failed, handle error
@@ -345,11 +338,16 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    //ui functions
-    fun loginUser(customerModel: CustomerModel) {
-        
-    }
+    //logic
 
+    fun checkCustomerFields(customerModel: CustomerModel) = listOfNotNull(
+        customerModel.customerName,
+        customerModel.customerTier,
+        customerModel.customerAddress,
+        customerModel.customerVisitCount,
+        customerModel.customerBalance,
+        customerModel.customerFlag
+    ).size == 6
 
     companion object {
         const val TAG = "ernesthor24 MainViewModel"

@@ -26,7 +26,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.simplifier.circlebarnfc.domain.model.CustomerModel
 import com.simplifier.circlebarnfc.presentation.components.CustomSwitch
+import com.simplifier.circlebarnfc.presentation.components.CustomText
+import com.simplifier.circlebarnfc.presentation.components.CustomerDetails
+import com.simplifier.circlebarnfc.presentation.components.PaymentDetails
 import com.simplifier.circlebarnfc.presentation.utils.CoroutineHelper
 import com.simplifier.circlebarnfc.presentation.utils.MifareClassicHelper
 import kotlinx.coroutines.CoroutineScope
@@ -47,8 +51,9 @@ fun MainScreen(mainViewModel: MainViewModel) {
     val coroutineScope = rememberCoroutineScope()
 
     val message: String by mainViewModel.message.collectAsState()
-    
+
     val access: Boolean by mainViewModel.isAccess.collectAsState()
+    val customerDetails: CustomerModel by mainViewModel.customerDetails.collectAsState()
 
     LaunchedEffect(tag) {
         taskJob.value?.cancel()
@@ -60,6 +65,7 @@ fun MainScreen(mainViewModel: MainViewModel) {
             Log.i(TAG, "MainScreen: launched effect called tag not null")
         } else {
             mainViewModel.tagRemoved()
+            mainViewModel.setMessage("Please Tap Card")
             Log.i(TAG, "MainScreen: launched effect called tag null")
         }
     }
@@ -72,14 +78,22 @@ fun MainScreen(mainViewModel: MainViewModel) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        CustomSwitch(textArray = listOf("Access","Payment")) { isChecked ->
+        CustomSwitch(textArray = listOf("Access", "Payment")) { isChecked ->
             mainViewModel.setAccess(isChecked)
         }
 
         // gap between switch and the text
         Spacer(modifier = Modifier.height(height = 8.dp))
 
-        Text(text = message)
+        CustomText(text = message)
+
+        if (mainViewModel.checkCustomerFields(customerDetails)) {
+            if (access) {
+                CustomerDetails(customer = customerDetails)
+            } else {
+                PaymentDetails(customer = customerDetails)
+            }
+        }
     }
 }
 

@@ -3,6 +3,7 @@ package com.simplifier.circlebarnfc.presentation.utils
 import android.nfc.Tag
 import android.nfc.tech.MifareClassic
 import android.util.Log
+import com.simplifier.circlebarnfc.main
 import com.simplifier.circlebarnfc.presentation.MainViewModel
 import java.io.IOException
 
@@ -62,12 +63,13 @@ object MifareClassicHelper {
                         mainViewModel.setAuthentication(true)
                         operations.invoke(mifareClassic)
                     } else {
+                        mainViewModel.setMessage("Invalid Access!\nPlease check your card...")
                         mainViewModel.setAuthentication(false)
                         Log.i(TAG, "handleMifareClassic: authentication failed")
                     }
                 } catch (e: IOException) {
                     Log.i(TAG, "handleMifareClassic: IO Exception")
-                    mainViewModel.setMessage("Please check card connection")
+                    mainViewModel.setMessage("Please Tap Card")
                 } catch (e: Exception) {
                     mainViewModel.setMessage("Error reading data: ${e.message}")
                 } finally {
