@@ -1,4 +1,4 @@
-package com.simplifier.circlebarnfc.ui.theme
+package com.simplifier.circlebarnfc.presentation.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle

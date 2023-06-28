@@ -1,4 +1,4 @@
-package com.simplifier.circlebarnfc.ui.theme
+package com.simplifier.circlebarnfc.presentation.theme
 
 import android.app.Activity
 import android.os.Build
