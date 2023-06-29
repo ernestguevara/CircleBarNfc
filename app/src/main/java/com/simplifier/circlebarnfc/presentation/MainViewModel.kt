@@ -40,6 +40,7 @@ class MainViewModel : ViewModel() {
     private val _key = MutableStateFlow(Pair(ByteArray(0), ByteArray(0)))
     val key: StateFlow<Pair<ByteArray, ByteArray>> = _key.asStateFlow()
 
+    //unused will not remove for future usage or separation of messages
     private val _authentication = MutableStateFlow(false)
     val authentication: StateFlow<Boolean> = _authentication.asStateFlow()
 
@@ -55,7 +56,7 @@ class MainViewModel : ViewModel() {
     private val _customerDetails = MutableStateFlow(CustomerModel())
     val customerDetails: StateFlow<CustomerModel> = _customerDetails.asStateFlow()
 
-    var customerModel = CustomerModel()
+    private var customerModel = CustomerModel()
 
     fun setIntent(intent: Intent) {
         if (intent.action == NfcAdapter.ACTION_TAG_DISCOVERED) {
@@ -112,6 +113,7 @@ class MainViewModel : ViewModel() {
 
     //end section setter
 
+    //start mifare commands
     fun authenticate(tag: Tag?) {
         tag?.id?.let {
             val keyA = ConversionHelper.getStaffKeyA(it)
@@ -134,25 +136,20 @@ class MainViewModel : ViewModel() {
 
                 val allPropertiesFilled = checkCustomerFields(customerModel)
 
-                Log.i(
-                    TAG,
-                    "authenticate: customerModel is all filled $allPropertiesFilled \n model is ${
-                        Gson().toJson(customerModel)
-                    }"
-                )
+                Log.i(TAG, "authenticate: customerModel is all filled $allPropertiesFilled \n model is ${Gson().toJson(customerModel)}")
 
                 if (checkCustomerFields(customerModel)) {
-//                    setAuthentication(true)
                     setMessageCode()
                     checkTransaction(mifareClassic)
                 } else {
+                    setMessageCode(CODE_ERROR_READ)
                     setAuthentication(false)
                 }
             }
         }
     }
 
-    fun getCustomerInfo(mifareClassic: MifareClassic) {
+    private fun getCustomerInfo(mifareClassic: MifareClassic) {
         val keys = key.value
         if (mifareClassic.authenticateSectorWithKeyB(INFO_SECTOR, keys.second)) {
             val nameBlockIndex = mifareClassic.sectorToBlock(INFO_SECTOR) + NAME_BLOCK
@@ -209,7 +206,7 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    fun checkTransaction(
+    private fun checkTransaction(
         mifareClassic: MifareClassic
     ) {
         when (customerModel.customerFlag) {
@@ -278,7 +275,7 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    fun changeFlag(mifareClassic: MifareClassic, flag: Int) {
+    private fun changeFlag(mifareClassic: MifareClassic, flag: Int) {
 
         val sectorIndex = TRANSACTION_SECTOR
         val blockIndex = FLAG_BLOCK

@@ -27,12 +27,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.simplifier.circlebarnfc.R
 import com.simplifier.circlebarnfc.domain.model.CustomerModel
 import com.simplifier.circlebarnfc.presentation.components.CustomSwitch
 import com.simplifier.circlebarnfc.presentation.components.CustomText
 import com.simplifier.circlebarnfc.presentation.components.CustomerDetails
 import com.simplifier.circlebarnfc.presentation.components.PaymentDetails
+import com.simplifier.circlebarnfc.presentation.theme.ColMagenta
+import com.simplifier.circlebarnfc.presentation.theme.ColYellow
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_BAL_INSUFFICIENT
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_CARD_CONNECTION
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_CARD_INVALID
@@ -57,18 +60,13 @@ private const val TAG = "ernesthor24 MainScreen"
 
 @Composable
 fun MainScreen(mainViewModel: MainViewModel) {
-
-    val tag: Tag? by mainViewModel.tag.collectAsState()
-
     val context = LocalContext.current
 
     val taskJob = remember { mutableStateOf<Job?>(null) }
     val coroutineScope = rememberCoroutineScope()
 
-    val message: String by mainViewModel.message.collectAsState()
-
+    val tag: Tag? by mainViewModel.tag.collectAsState()
     val messageCode: Int by mainViewModel.messageCode.collectAsState()
-
     val access: Boolean by mainViewModel.isAccess.collectAsState()
     val customerDetails: CustomerModel by mainViewModel.customerDetails.collectAsState()
 
@@ -90,11 +88,21 @@ fun MainScreen(mainViewModel: MainViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(color = Color.White)
+            .background(color = getColor(access))
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        if (messageCode == CODE_OPENING_TAB) {
+            mainViewModel.getCustomerBalance()?.let { bal ->
+                CustomText(text = stringResource(id = R.string.message_opening_tab, bal), isBold = true, fontSize = 20.sp)
+            }
+        } else if (messageCode != 0){
+            CustomText(text = stringResource(id = getMessage(messageCode)), isBold = true)
+        }
+
+        Spacer(modifier = Modifier.height(height = 16.dp))
+
         CustomSwitch(
             textArray = listOf(
                 stringResource(id = R.string.label_access),
@@ -104,17 +112,7 @@ fun MainScreen(mainViewModel: MainViewModel) {
             mainViewModel.setAccess(isChecked)
         }
 
-        // gap between switch and the text
-        Spacer(modifier = Modifier.height(height = 8.dp))
-
-        if (messageCode == CODE_OPENING_TAB) {
-            mainViewModel.getCustomerBalance()?.let { bal ->
-                CustomText(text = stringResource(id = R.string.message_opening_tab, bal))
-            }
-        } else if (messageCode != 0){
-            CustomText(text = stringResource(id = getMessage(messageCode)))
-        }
-
+        Spacer(modifier = Modifier.height(height = 16.dp))
 
         if (mainViewModel.checkCustomerFields(customerDetails)) {
             if (access) {
@@ -210,5 +208,9 @@ private fun getMessage(code: Int): Int {
             0
         }
     }
+}
+
+private fun getColor(access: Boolean): Color{
+    return if (access) ColMagenta else ColYellow
 }
 

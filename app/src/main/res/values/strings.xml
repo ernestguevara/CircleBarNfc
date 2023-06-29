@@ -1,8 +1,18 @@
 <resources>
     <string name="app_name">CircleBarNfc</string>
 
+    <string name="label_cancel">Cancel</string>
+    <string name="label_settings">Go to Settings</string>
     <string name="label_access">Access</string>
     <string name="label_payment">Payment</string>
+    <string name="label_name">Name</string>
+    <string name="label_tier">Tier</string>
+    <string name="label_address">Address</string>
+    <string name="label_visit">Visit Count</string>
+    <string name="label_balance">Balance Left</string>
+
+    <string name="label_no_nfc">No NFC</string>
+    <string name="label_enable_nfc">Enable NFC</string>
 
     //message
     <string name="message_tap_card">Please Tap Card</string>
@@ -18,4 +28,7 @@
     <string name="message_opening_tab">Opening your tab…\nBalance: %.2f</string>
     <string name="message_closing_tab">Bill\'s settled</string>
     <string name="message_tab_open">Please settle the bill, tab\'s open</string>
+
+    <string name="message_no_nfc">Your device does not support NFC</string>
+    <string name="message_enable_nfc">Please enable NFC to use this feature.</string>
 </resources>

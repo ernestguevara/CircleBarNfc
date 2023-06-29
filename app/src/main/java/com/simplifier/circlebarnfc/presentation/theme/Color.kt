@@ -12,4 +12,4 @@ val Pink40 = Color(0xFF7D5260)
 
 val ColMagenta = Color(0xFFc23166)
 val ColCyan = Color(0xFF3aeee6)
-val ColYellow= Color(0xFFfed73a)
+val ColYellow= Color(0xFFE4C134)

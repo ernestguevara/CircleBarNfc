@@ -10,33 +10,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.simplifier.circlebarnfc.R
 import com.simplifier.circlebarnfc.domain.model.CustomerModel
 
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PaymentDetails(customer: CustomerModel) {
     Column(modifier = Modifier.padding(16.dp)) {
-        OutlinedTextField(
-            value = customer.customerName ?: "",
-            onValueChange = { /* Handle name change */ },
-            label = { Text("Name") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        OutlinedTextField(
-            value = customer.customerTier?.toString() ?: "",
-            onValueChange = { /* Handle tier change */ },
-            label = { Text("Tier") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        OutlinedTextField(
-            value = customer.customerBalance?.toString() ?: "",
-            onValueChange = { /* Handle balance change */ },
-            label = { Text("Balance Left") },
-            modifier = Modifier.fillMaxWidth()
-        )
+        CustomTextField(customer.customerName, stringResource(id = R.string.label_name))
+        CustomTextField(customer.customerTier.toString(), stringResource(id = R.string.label_tier))
+        CustomTextField(customer.customerBalance.toString(), stringResource(id = R.string.label_balance))
     }
 }
