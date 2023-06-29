@@ -32,9 +32,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.simplifier.circlebarnfc.presentation.theme.ColMagenta
 import com.simplifier.circlebarnfc.presentation.theme.ColYellow
 
@@ -67,11 +69,22 @@ fun CustomSwitch(
     val alignment by animateAlignmentAsState(if (isChecked) 1f else -1f)
 
     Row(
+        modifier = Modifier
+            .background(
+                Color.White,
+                shape = RoundedCornerShape(8.dp)
+            ) // Set the background color to white
+            .padding(16.dp),
         horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically
     ) {
 
-        Text(text = if (isChecked) textArray[0] else textArray[1])
+        CustomText(
+            text = if (isChecked) textArray[0] else textArray[1],
+            fontSize = 18.sp,
+            color = Color.Black,
+            isBold = true
+        )
 
         // gap between switch and the text
         Spacer(modifier = Modifier.width(width = 8.dp))

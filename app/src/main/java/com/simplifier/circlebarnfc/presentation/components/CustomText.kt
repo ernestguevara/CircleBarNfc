@@ -1,6 +1,5 @@
 package com.simplifier.circlebarnfc.presentation.components
 
-import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -19,8 +18,8 @@ fun CustomText(
     text: String,
     isBold: Boolean = false,
     fontSize: TextUnit = 24.sp,
-    color: Color = Color.Unspecified,
-    alignment: TextAlign = TextAlign.Start,
+    color: Color = Color.White,
+    alignment: TextAlign = TextAlign.Center,
     modifier: Modifier = Modifier
 ) {
     val style = TextStyle(
