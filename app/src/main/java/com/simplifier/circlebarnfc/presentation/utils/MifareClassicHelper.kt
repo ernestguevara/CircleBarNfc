@@ -1,14 +1,20 @@
 package com.simplifier.circlebarnfc.presentation.utils
 
+import android.content.res.Resources
 import android.nfc.Tag
 import android.nfc.tech.MifareClassic
 import android.util.Log
+import com.simplifier.circlebarnfc.R
 import com.simplifier.circlebarnfc.main
 import com.simplifier.circlebarnfc.presentation.MainViewModel
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_CARD_CONNECTION
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_ERROR_READ
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_INVALID_ACCESS
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_TAP_CARD
 import java.io.IOException
 
 object MifareClassicHelper {
-    private const val TAG = "MifareClassicHelper"
+    private const val TAG = "ernesthor24 MifareClassicHelper"
 
     private lateinit var mifareClassic: MifareClassic
 
@@ -33,12 +39,12 @@ object MifareClassicHelper {
                 //do nothing as tag is present
                 Log.i(TAG, "handleMifareClassic: tag connected")
             } catch (e: IOException) {
-                Log.i(TAG, "handleMifareClassic: IO Exception")
-                mainViewModel.setMessage("Please check card connection")
+                Log.i(TAG, "handleMifareClassic: IO Exception polling")
+                mainViewModel.setMessageCode(CODE_CARD_CONNECTION)
                 mainViewModel.tagRemoved()
             } catch (e: Exception) {
                 Log.i(TAG, "Error reading data: ${e.message}")
-                mainViewModel.setMessage("Error reading data: ${e.message}")
+                mainViewModel.setMessageCode(CODE_ERROR_READ)
             } finally {
                 mifareClassic.close()
             }
@@ -63,15 +69,15 @@ object MifareClassicHelper {
                         mainViewModel.setAuthentication(true)
                         operations.invoke(mifareClassic)
                     } else {
-                        mainViewModel.setMessage("Invalid Access!\nPlease check your card...")
+                        mainViewModel.setMessageCode(CODE_INVALID_ACCESS)
                         mainViewModel.setAuthentication(false)
                         Log.i(TAG, "handleMifareClassic: authentication failed")
                     }
                 } catch (e: IOException) {
-                    Log.i(TAG, "handleMifareClassic: IO Exception")
-                    mainViewModel.setMessage("Please Tap Card")
+                    Log.i(TAG, "handleMifareClassic: IO Exception transaction")
+                    mainViewModel.setMessageCode(CODE_TAP_CARD)
                 } catch (e: Exception) {
-                    mainViewModel.setMessage("Error reading data: ${e.message}")
+                    mainViewModel.setMessageCode(CODE_ERROR_READ)
                 } finally {
                     mifareClassic.close()
                 }

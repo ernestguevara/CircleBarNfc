@@ -25,12 +25,27 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.simplifier.circlebarnfc.R
 import com.simplifier.circlebarnfc.domain.model.CustomerModel
 import com.simplifier.circlebarnfc.presentation.components.CustomSwitch
 import com.simplifier.circlebarnfc.presentation.components.CustomText
 import com.simplifier.circlebarnfc.presentation.components.CustomerDetails
 import com.simplifier.circlebarnfc.presentation.components.PaymentDetails
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_BAL_INSUFFICIENT
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_CARD_CONNECTION
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_CARD_INVALID
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_CLOSE_TAB
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_ERROR_READ
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_INCORRECT_ACCESS
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_INVALID_ACCESS
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_MAX_BAL
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_OPENING_TAB
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_TAB_OPEN_ERROR
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_TAP_CARD
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_THANK_YOU
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_WELCOME
 import com.simplifier.circlebarnfc.presentation.utils.CoroutineHelper
 import com.simplifier.circlebarnfc.presentation.utils.MifareClassicHelper
 import kotlinx.coroutines.CoroutineScope
@@ -52,6 +67,8 @@ fun MainScreen(mainViewModel: MainViewModel) {
 
     val message: String by mainViewModel.message.collectAsState()
 
+    val messageCode: Int by mainViewModel.messageCode.collectAsState()
+
     val access: Boolean by mainViewModel.isAccess.collectAsState()
     val customerDetails: CustomerModel by mainViewModel.customerDetails.collectAsState()
 
@@ -65,7 +82,7 @@ fun MainScreen(mainViewModel: MainViewModel) {
             Log.i(TAG, "MainScreen: launched effect called tag not null")
         } else {
             mainViewModel.tagRemoved()
-            mainViewModel.setMessage("Please Tap Card")
+            mainViewModel.setMessageCode(CODE_TAP_CARD)
             Log.i(TAG, "MainScreen: launched effect called tag null")
         }
     }
@@ -78,14 +95,26 @@ fun MainScreen(mainViewModel: MainViewModel) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        CustomSwitch(textArray = listOf("Access", "Payment")) { isChecked ->
+        CustomSwitch(
+            textArray = listOf(
+                stringResource(id = R.string.label_access),
+                stringResource(id = R.string.label_payment)
+            )
+        ) { isChecked ->
             mainViewModel.setAccess(isChecked)
         }
 
         // gap between switch and the text
         Spacer(modifier = Modifier.height(height = 8.dp))
 
-        CustomText(text = message)
+        if (messageCode == CODE_OPENING_TAB) {
+            mainViewModel.getCustomerBalance()?.let { bal ->
+                CustomText(text = stringResource(id = R.string.message_opening_tab, bal))
+            }
+        } else if (messageCode != 0){
+            CustomText(text = stringResource(id = getMessage(messageCode)))
+        }
+
 
         if (mainViewModel.checkCustomerFields(customerDetails)) {
             if (access) {
@@ -120,5 +149,66 @@ private fun authenticate(
     tag: Tag?
 ) {
     mainViewModel.authenticate(tag)
+}
+
+private fun getMessage(code: Int): Int {
+    return when (code) {
+        CODE_TAP_CARD -> {
+            R.string.message_tap_card
+        }
+
+        CODE_CARD_CONNECTION -> {
+            R.string.message_card_connection
+        }
+
+        CODE_ERROR_READ -> {
+            R.string.message_error_read
+        }
+
+
+        CODE_INVALID_ACCESS -> {
+            R.string.message_invalid_access
+        }
+
+        CODE_CARD_INVALID -> {
+            R.string.message_card_invalid
+        }
+
+        CODE_MAX_BAL -> {
+            R.string.message_max_balance
+        }
+
+        CODE_BAL_INSUFFICIENT -> {
+            R.string.message_enough_balance
+        }
+
+        CODE_INCORRECT_ACCESS -> {
+            R.string.message_incorrect_access
+        }
+
+        CODE_WELCOME -> {
+            R.string.message_welcome
+        }
+
+        CODE_THANK_YOU -> {
+            R.string.message_thank_you
+        }
+
+        CODE_OPENING_TAB -> {
+            R.string.message_opening_tab
+        }
+
+        CODE_CLOSE_TAB -> {
+            R.string.message_closing_tab
+        }
+
+        CODE_TAB_OPEN_ERROR -> {
+            R.string.message_tab_open
+        }
+
+        else -> {
+            0
+        }
+    }
 }
 

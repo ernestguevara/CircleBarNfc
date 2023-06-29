@@ -10,6 +10,19 @@ import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
 import com.simplifier.circlebarnfc.byteArrayToDecimal
 import com.simplifier.circlebarnfc.domain.model.CustomerModel
+import com.simplifier.circlebarnfc.presentation.utils.Constants
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_BAL_INSUFFICIENT
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_CARD_INVALID
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_CLOSE_TAB
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_EMPTY
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_ERROR_READ
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_INCORRECT_ACCESS
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_MAX_BAL
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_OPENING_TAB
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_TAB_OPEN_ERROR
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_TAP_CARD
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_THANK_YOU
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_WELCOME
 import com.simplifier.circlebarnfc.presentation.utils.ConversionHelper
 import com.simplifier.circlebarnfc.presentation.utils.ConversionHelper.bytesToHexStringWithSpace
 import com.simplifier.circlebarnfc.presentation.utils.MifareClassicHelper
@@ -33,6 +46,9 @@ class MainViewModel : ViewModel() {
     private val _message = MutableStateFlow("")
     val message: StateFlow<String> = _message.asStateFlow()
 
+    private val _messageCode = MutableStateFlow(0)
+    val messageCode: StateFlow<Int> = _messageCode.asStateFlow()
+
     private val _isAccess = MutableStateFlow(true)
     val isAccess: StateFlow<Boolean> = _isAccess.asStateFlow()
 
@@ -52,9 +68,9 @@ class MainViewModel : ViewModel() {
                 setTag(intentTag)
             } else {
                 viewModelScope.launch {
-                    setMessage("Card not valid")
+                    setMessageCode(CODE_CARD_INVALID)
                     delay(2000)
-                    setMessage("Please Tap Card")
+                    setMessageCode(CODE_TAP_CARD)
                 }
                 Log.i(TAG, "setIntent: not a mifare classic card")
             }
@@ -81,8 +97,8 @@ class MainViewModel : ViewModel() {
         _authentication.value = auth
     }
 
-    fun setMessage(message: String = "") {
-        _message.value = message
+    fun setMessageCode(code: Int = CODE_EMPTY) {
+        _messageCode.value = code
     }
 
     fun setAccess(isAccess: Boolean) {
@@ -118,11 +134,16 @@ class MainViewModel : ViewModel() {
 
                 val allPropertiesFilled = checkCustomerFields(customerModel)
 
-                Log.i(TAG, "authenticate: customerModel is all filled $allPropertiesFilled \n model is ${Gson().toJson(customerModel)}")
+                Log.i(
+                    TAG,
+                    "authenticate: customerModel is all filled $allPropertiesFilled \n model is ${
+                        Gson().toJson(customerModel)
+                    }"
+                )
 
                 if (checkCustomerFields(customerModel)) {
 //                    setAuthentication(true)
-                    setMessage()
+                    setMessageCode()
                     checkTransaction(mifareClassic)
                 } else {
                     setAuthentication(false)
@@ -181,7 +202,10 @@ class MainViewModel : ViewModel() {
                 customerBalance = ConversionHelper.decimalToDoubleWithCents(balance)
                 customerFlag = passFlag
             }
-            Log.i(TAG, "getCustomerInfo: transaction visitCount: $visit balance $balance passFlag $passFlag")
+            Log.i(
+                TAG,
+                "getCustomerInfo: transaction visitCount: $visit balance $balance passFlag $passFlag"
+            )
         }
     }
 
@@ -193,19 +217,22 @@ class MainViewModel : ViewModel() {
                 Log.i(TAG, "checkTransaction: user is logged out")
                 if (isAccess.value) {
                     Log.i(TAG, "checkTransaction: login the user")
-                    if (changeValueBlock(mifareClassic,
+                    if (changeValueBlock(
+                            mifareClassic,
                             TRANSACTION_SECTOR,
                             BALANCE_BLOCK,
                             3000,
-                            false)) {
+                            false
+                        )
+                    ) {
                         changeFlag(mifareClassic, FLAG_LOGGED_IN)
                         changeValueBlock(mifareClassic, TRANSACTION_SECTOR, VISIT_BLOCK, 1)
                         setUser(mifareClassic)
-                        setMessage("Welcome to CircleBar!")
+                        setMessageCode(CODE_WELCOME)
                     }
                 } else {
                     Log.i(TAG, "Incorrect access please login at the terminal")
-                    setMessage("Incorrect access please login at the terminal")
+                    setMessageCode(CODE_INCORRECT_ACCESS)
                 }
             }
 
@@ -214,18 +241,18 @@ class MainViewModel : ViewModel() {
                 if (isAccess.value) {
                     Log.i(TAG, "checkTransaction: will logout")
                     changeFlag(mifareClassic, FLAG_LOGGED_OUT)
-                    setMessage("Thank you, please come again!")
+                    setMessageCode(CODE_THANK_YOU)
                 } else {
                     Log.i(TAG, "checkTransaction: will open the user tab")
                     changeFlag(mifareClassic, FLAG_OPEN_TAB)
-                    setMessage("Opening your tab... \n Balance: ${customerModel.customerBalance}")
+                    setMessageCode(CODE_OPENING_TAB)
                 }
             }
 
             FLAG_OPEN_TAB -> {
                 Log.i(TAG, "checkTransaction: user tab is opened")
                 if (isAccess.value) {
-                    setMessage("Please settle the bill for the user's open tab")
+                    setMessageCode(CODE_TAB_OPEN_ERROR)
                     Log.i(TAG, "checkTransaction: Please settle the bill for the user's open tab")
                 } else {
                     Log.i(TAG, "checkTransaction: open tab will change to login")
@@ -239,7 +266,7 @@ class MainViewModel : ViewModel() {
                     ) {
                         changeFlag(mifareClassic, FLAG_LOGGED_IN)
                         setUser(mifareClassic)
-                        setMessage("Bill's settled!")
+                        setMessageCode(CODE_CLOSE_TAB)
                     }
                 }
             }
@@ -285,7 +312,13 @@ class MainViewModel : ViewModel() {
         Log.i(TAG, "setValueBlock: flag ${bytesToHexStringWithSpace(valueBlockData)}")
 
         // Write the value block data to the block
-        mifareClassic.writeBlock(blockAddress, valueBlockData)
+        try {
+            mifareClassic.writeBlock(blockAddress, valueBlockData)
+        } catch (e: Exception) {
+            //restore and transfer
+            mifareClassic.restore(blockAddress)
+            mifareClassic.transfer(blockAddress)
+        }
     }
 
     private fun changeValueBlock(
@@ -302,18 +335,25 @@ class MainViewModel : ViewModel() {
         // Read the block data
 
         val valueBlockVal = byteArrayToDecimal(mifareClassic.readBlock(blockAddress))
-        Log.i(TAG, "readDataBlock success data is ${bytesToHexStringWithSpace(mifareClassic.readBlock(blockAddress))} "
-                + "\n decimal value is ${byteArrayToDecimal(mifareClassic.readBlock(blockAddress))}")
+        Log.i(
+            TAG,
+            "readDataBlock success data is ${
+                bytesToHexStringWithSpace(
+                    mifareClassic.readBlock(blockAddress)
+                )
+            } "
+                    + "\n decimal value is ${byteArrayToDecimal(mifareClassic.readBlock(blockAddress))}"
+        )
 
         if (increment && valueBlockVal + value > 65536) {
             //higher than threshold
             Log.i(TAG, "changeValueBlock: Maximum Balance Reached")
-            setMessage("Maximum Balance Reached")
+            setMessageCode(CODE_MAX_BAL)
             return false
         } else if ((!increment && valueBlockVal - value < 0)) {
             //lower than threshold
             Log.i(TAG, "changeValueBlock: Not Enough Balance")
-            setMessage("Not Enough Balance")
+            setMessageCode(CODE_BAL_INSUFFICIENT)
             return false
         } else {
             try {
@@ -327,19 +367,22 @@ class MainViewModel : ViewModel() {
                 Log.i(
                     TAG, "changeValueBlock: increment: $increment success " +
                             "\n old value $valueBlockVal" +
-                            "\n new value ${byteArrayToDecimal(mifareClassic.readBlock(blockAddress))}")
+                            "\n new value ${byteArrayToDecimal(mifareClassic.readBlock(blockAddress))}"
+                )
                 return true
             } catch (e: Exception) {
                 // Increment operation failed, handle error
-                Log.i(TAG, "changeValueBlock: increment: $increment failed")
-                e.message?.let { setMessage(it) }
+                Log.i(TAG, "changeValueBlock: increment: $increment failed error ${e.message}")
+                //restore and transfer
+                mifareClassic.restore(blockAddress)
+                mifareClassic.transfer(blockAddress)
+                setMessageCode(CODE_ERROR_READ)
                 return false
             }
         }
     }
 
     //logic
-
     fun checkCustomerFields(customerModel: CustomerModel) = listOfNotNull(
         customerModel.customerName,
         customerModel.customerTier,
@@ -348,6 +391,11 @@ class MainViewModel : ViewModel() {
         customerModel.customerBalance,
         customerModel.customerFlag
     ).size == 6
+
+    //get values
+    fun getCustomerBalance(): Double? {
+        return customerModel.customerBalance
+    }
 
     companion object {
         const val TAG = "ernesthor24 MainViewModel"
