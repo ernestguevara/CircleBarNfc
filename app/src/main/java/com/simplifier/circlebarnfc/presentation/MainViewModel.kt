@@ -60,20 +60,25 @@ class MainViewModel : ViewModel() {
 
     fun setIntent(intent: Intent) {
         if (intent.action == NfcAdapter.ACTION_TAG_DISCOVERED) {
-            // NFC card is discovered
-            // Handle your NFC operations here
-            val intentTag: Tag? = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG)
+            if (_tag.value == null) {
+                Log.i(TAG, "setIntent: no tag found will proceed")
+                // NFC card is discovered
+                // Handle your NFC operations here
+                val intentTag: Tag? = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG)
 
-            //Check if MifareClassic Card
-            if (intentTag?.techList?.contains(MifareClassic::class.java.name) == true) {
-                setTag(intentTag)
-            } else {
-                viewModelScope.launch {
-                    setMessageCode(CODE_CARD_INVALID)
-                    delay(2000)
-                    setMessageCode(CODE_TAP_CARD)
+                //Check if MifareClassic Card
+                if (intentTag?.techList?.contains(MifareClassic::class.java.name) == true) {
+                    setTag(intentTag)
+                } else {
+                    viewModelScope.launch {
+                        setMessageCode(CODE_CARD_INVALID)
+                        delay(2000)
+                        setMessageCode(CODE_TAP_CARD)
+                    }
+                    Log.i(TAG, "setIntent: not a mifare classic card")
                 }
-                Log.i(TAG, "setIntent: not a mifare classic card")
+            } else {
+                Log.i(TAG, "setIntent: tag found wont do anything")
             }
         }
     }
