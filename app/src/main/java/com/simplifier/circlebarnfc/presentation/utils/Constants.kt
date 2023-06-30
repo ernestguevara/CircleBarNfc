@@ -15,4 +15,6 @@ object Constants {
     const val CODE_OPENING_TAB = 11
     const val CODE_CLOSE_TAB = 12
     const val CODE_TAB_OPEN_ERROR = 13
+
+    const val DEBOUNCE_TIME = 3000
 }

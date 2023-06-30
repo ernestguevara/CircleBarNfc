@@ -1,7 +1,8 @@
 package com.simplifier.circlebarnfc.presentation
 
-import android.content.Context
 import android.nfc.Tag
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -10,17 +11,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -49,39 +43,38 @@ import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_TAB_OPEN_ER
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_TAP_CARD
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_THANK_YOU
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_WELCOME
-import com.simplifier.circlebarnfc.presentation.utils.CoroutineHelper
-import com.simplifier.circlebarnfc.presentation.utils.MifareClassicHelper
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import com.simplifier.circlebarnfc.presentation.utils.Constants.DEBOUNCE_TIME
+import com.simplifier.circlebarnfc.presentation.utils.NFCManager
 
 private const val TAG = "ernesthor24 MainScreen"
 
 @Composable
-fun MainScreen(mainViewModel: MainViewModel) {
+fun MainScreen(mainViewModel: MainViewModel, nfcManager: NFCManager) {
     val context = LocalContext.current
-
-    val taskJob = remember { mutableStateOf<Job?>(null) }
-    val coroutineScope = rememberCoroutineScope()
 
     val tag: Tag? by mainViewModel.tag.collectAsState()
     val messageCode: Int by mainViewModel.messageCode.collectAsState()
     val access: Boolean by mainViewModel.isAccess.collectAsState()
     val customerDetails: CustomerModel by mainViewModel.customerDetails.collectAsState()
 
+    val transactionStatus: Boolean by mainViewModel.transactionStatus.collectAsState()
+
     LaunchedEffect(tag) {
-        taskJob.value?.cancel()
-        if (tag != null) {
-            CoroutineHelper.runOnIOThread {
-                cardPolling(mainViewModel, tag, context, taskJob, coroutineScope)
-            }
-            authenticate(mainViewModel, tag)
+        tag?.let {
             Log.i(TAG, "MainScreen: launched effect called tag not null")
-        } else {
-            mainViewModel.tagRemoved()
-            mainViewModel.setMessageCode(CODE_TAP_CARD)
-            Log.i(TAG, "MainScreen: launched effect called tag null")
+            authenticate(mainViewModel, it)
+        }
+    }
+
+    if (transactionStatus) {
+        tag?.let {
+            nfcManager.ignore(it, DEBOUNCE_TIME, {
+                Log.i(TAG, "MainScreen: card removed")
+                mainViewModel.setMifareTransactionStatus(isComplete = false)
+                mainViewModel.tagRemoved()
+                mainViewModel.setMessageCode(CODE_TAP_CARD)
+            }, Handler(Looper.getMainLooper())
+            )
         }
     }
 
@@ -95,9 +88,13 @@ fun MainScreen(mainViewModel: MainViewModel) {
     ) {
         if (messageCode == CODE_OPENING_TAB) {
             mainViewModel.getCustomerBalance()?.let { bal ->
-                CustomText(text = stringResource(id = R.string.message_opening_tab, bal), isBold = true, fontSize = 20.sp)
+                CustomText(
+                    text = stringResource(id = R.string.message_opening_tab, bal),
+                    isBold = true,
+                    fontSize = 20.sp
+                )
             }
-        } else if (messageCode != 0){
+        } else if (messageCode != 0) {
             CustomText(text = stringResource(id = getMessage(messageCode)), isBold = true)
         }
 
@@ -124,27 +121,9 @@ fun MainScreen(mainViewModel: MainViewModel) {
     }
 }
 
-private fun cardPolling(
-    mainViewModel: MainViewModel,
-    tag: Tag?,
-    context: Context,
-    taskJob: MutableState<Job?>,
-    coroutineScope: CoroutineScope
-) {
-    taskJob.value = coroutineScope.launch {
-        MifareClassicHelper.polling(mainViewModel, tag)
-
-        //wait 5 seconds to poll again
-        delay(5000)
-
-        //pass mainViewModel tag as it can change value
-        cardPolling(mainViewModel, mainViewModel.tag.value, context, taskJob, coroutineScope)
-    }
-}
-
 private fun authenticate(
     mainViewModel: MainViewModel,
-    tag: Tag?
+    tag: Tag
 ) {
     mainViewModel.authenticate(tag)
 }
@@ -210,7 +189,7 @@ private fun getMessage(code: Int): Int {
     }
 }
 
-private fun getColor(access: Boolean): Color{
+private fun getColor(access: Boolean): Color {
     return if (access) ColMagenta else ColYellow
 }
 

@@ -5,6 +5,9 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.nfc.NfcAdapter
+import android.nfc.NfcAdapter.OnTagRemovedListener
+import android.nfc.Tag
+import android.os.Handler
 import android.util.Log
 import androidx.lifecycle.LifecycleCoroutineScope
 import com.simplifier.circlebarnfc.MainActivity
@@ -116,5 +119,9 @@ class NFCManager(
             }
         }
         builder.show()
+    }
+
+    fun ignore(tag: Tag, timeMs: Int, tagRemovedListener: OnTagRemovedListener, handler: Handler) {
+        nfcAdapter!!.ignore(tag, timeMs, tagRemovedListener, handler)
     }
 }

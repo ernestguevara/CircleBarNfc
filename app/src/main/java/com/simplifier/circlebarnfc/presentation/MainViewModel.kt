@@ -10,7 +10,6 @@ import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
 import com.simplifier.circlebarnfc.byteArrayToDecimal
 import com.simplifier.circlebarnfc.domain.model.CustomerModel
-import com.simplifier.circlebarnfc.presentation.utils.Constants
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_BAL_INSUFFICIENT
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_CARD_INVALID
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_CLOSE_TAB
@@ -44,9 +43,6 @@ class MainViewModel : ViewModel() {
     private val _authentication = MutableStateFlow(false)
     val authentication: StateFlow<Boolean> = _authentication.asStateFlow()
 
-    private val _message = MutableStateFlow("")
-    val message: StateFlow<String> = _message.asStateFlow()
-
     private val _messageCode = MutableStateFlow(0)
     val messageCode: StateFlow<Int> = _messageCode.asStateFlow()
 
@@ -55,6 +51,9 @@ class MainViewModel : ViewModel() {
 
     private val _customerDetails = MutableStateFlow(CustomerModel())
     val customerDetails: StateFlow<CustomerModel> = _customerDetails.asStateFlow()
+
+    private val _transactionStatus = MutableStateFlow(false)
+    val transactionStatus: StateFlow<Boolean> = _transactionStatus.asStateFlow()
 
     private var customerModel = CustomerModel()
 
@@ -92,6 +91,7 @@ class MainViewModel : ViewModel() {
     }
 
     fun tagRemoved() {
+        Log.i(TAG, "tagRemoved: called")
         _tag.value = null
         _key.value = Pair(byteArrayOf(0), byteArrayOf(0))
         _authentication.value = false
@@ -119,43 +119,40 @@ class MainViewModel : ViewModel() {
     //end section setter
 
     //start mifare commands
-    fun authenticate(tag: Tag?) {
-        tag?.id?.let {
+    fun authenticate(tag: Tag) {
+        tag.id?.let {
             val keyA = ConversionHelper.getStaffKeyA(it)
             val keyB = ConversionHelper.getStaffKeyB(it)
 
             updateKey(keyA, keyB)
         }
 
-        Log.i(
-            TAG,
-            "authenticate: keyA: ${bytesToHexStringWithSpace(key.value.first)} " +
-                    "keyB ${bytesToHexStringWithSpace(key.value.second)}"
-        )
+        Log.i(TAG, "authenticate: keyA: ${bytesToHexStringWithSpace(key.value.first)} " +
+                    "keyB ${bytesToHexStringWithSpace(key.value.second)}")
 
-        tag?.let {
-            val mifareClassic = MifareClassicHelper.getMifareInstance(tag)
+        val mifareClassic = MifareClassicHelper.getMifareInstance(tag)
 
-            MifareClassicHelper.handleMifareClassic(this, mifareClassic) {
-                getCustomerInfo(mifareClassic)
+        MifareClassicHelper.handleMifareClassic(this, mifareClassic) {
+            getCustomerInfo(mifareClassic)
 
-                val allPropertiesFilled = checkCustomerFields(customerModel)
+            val allPropertiesFilled = checkCustomerFields(customerModel)
 
-                Log.i(TAG, "authenticate: customerModel is all filled $allPropertiesFilled \n model is ${Gson().toJson(customerModel)}")
+            Log.i(TAG,"authenticate: customerModel is all filled $allPropertiesFilled \n model is ${Gson().toJson(customerModel)}")
 
-                if (checkCustomerFields(customerModel)) {
-                    setMessageCode()
-                    checkTransaction(mifareClassic)
-                } else {
-                    setMessageCode(CODE_ERROR_READ)
-                    setAuthentication(false)
-                }
+            if (checkCustomerFields(customerModel)) {
+                setMessageCode()
+                checkTransaction(mifareClassic)
+            } else {
+                setMessageCode(CODE_ERROR_READ)
+                setAuthentication(false)
             }
         }
     }
 
     private fun getCustomerInfo(mifareClassic: MifareClassic) {
         val keys = key.value
+
+        //Authenticate with info sector
         if (mifareClassic.authenticateSectorWithKeyB(INFO_SECTOR, keys.second)) {
             val nameBlockIndex = mifareClassic.sectorToBlock(INFO_SECTOR) + NAME_BLOCK
             val name =
@@ -180,6 +177,7 @@ class MainViewModel : ViewModel() {
             Log.i(TAG, "getCustomerInfo: userInfo name: $name tier $tier address $address")
         }
 
+        //Authenticate with transaction sector
         if (mifareClassic.authenticateSectorWithKeyB(TRANSACTION_SECTOR, keys.second)) {
             val visitBlockIndex =
                 mifareClassic.sectorToBlock(TRANSACTION_SECTOR) + VISIT_BLOCK
@@ -397,6 +395,15 @@ class MainViewModel : ViewModel() {
     //get values
     fun getCustomerBalance(): Double? {
         return customerModel.customerBalance
+    }
+
+    //mifare polling functions
+    fun setMifareTransactionStatus(isComplete: Boolean = false) {
+        _transactionStatus.value = isComplete
+    }
+
+    fun onTagRemoved() {
+
     }
 
     companion object {

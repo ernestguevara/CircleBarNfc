@@ -37,7 +37,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             CircleBarNfcTheme {
-                MainScreen(mainViewModel)
+                MainScreen(mainViewModel, nfcManager)
             }
         }
     }
