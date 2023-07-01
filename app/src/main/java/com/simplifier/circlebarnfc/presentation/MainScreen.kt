@@ -1,5 +1,6 @@
 package com.simplifier.circlebarnfc.presentation
 
+import android.content.Context
 import android.nfc.Tag
 import android.os.Handler
 import android.os.Looper
@@ -24,8 +25,12 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -50,20 +55,30 @@ import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_ERROR_READ
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_INCORRECT_ACCESS
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_INVALID_ACCESS
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_MAX_BAL
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_NO_CARD
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_NO_VAL
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_OPENING_TAB
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_TAB_OPEN_ERROR
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_TAP_CARD
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_THANK_YOU
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_WELCOME
 import com.simplifier.circlebarnfc.presentation.utils.Constants.DEBOUNCE_TIME
+import com.simplifier.circlebarnfc.presentation.utils.CoroutineHelper
+import com.simplifier.circlebarnfc.presentation.utils.MifareClassicHelper
 import com.simplifier.circlebarnfc.presentation.utils.NFCManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private const val TAG = "ernesthor24 MainScreen"
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(mainViewModel: MainViewModel, nfcManager: NFCManager) {
     val context = LocalContext.current
+
+    val taskJob = remember { mutableStateOf<Job?>(null) }
+    val coroutineScope = rememberCoroutineScope()
 
     val tag: Tag? by mainViewModel.tag.collectAsState()
     val messageCode: Int by mainViewModel.messageCode.collectAsState()
@@ -73,23 +88,41 @@ fun MainScreen(mainViewModel: MainViewModel, nfcManager: NFCManager) {
     val transactionStatus: Boolean by mainViewModel.transactionStatus.collectAsState()
 
     LaunchedEffect(tag) {
+        taskJob.value?.cancel()
         tag?.let {
             Log.i(TAG, "MainScreen: launched effect called tag not null")
+            CoroutineHelper.runOnIOThread {
+                cardPolling(mainViewModel, it, context, taskJob, coroutineScope)
+            }
             authenticate(mainViewModel, it)
+        } ?: run {
+            mainViewModel.tagRemoved()
+            mainViewModel.setMessageCode(CODE_TAP_CARD)
+            Log.i(TAG, "MainScreen: launched effect called tag null")
         }
     }
 
-    if (transactionStatus) {
-        tag?.let {
-            nfcManager.ignore(it, DEBOUNCE_TIME, {
-                Log.i(TAG, "MainScreen: card removed")
-                mainViewModel.setMifareTransactionStatus(isComplete = false)
-                mainViewModel.tagRemoved()
-                mainViewModel.setMessageCode(CODE_TAP_CARD)
-            }, Handler(Looper.getMainLooper())
-            )
-        }
-    }
+    /*
+     * Bring back this code when bringing back ignore impl
+//     LaunchedEffect(tag) {
+//        tag?.let {
+//            Log.i(TAG, "MainScreen: launched effect called tag not null")
+//            authenticate(mainViewModel, it)
+//        }
+//    }
+//    if (transactionStatus) {
+//        tag?.let {
+//            nfcManager.ignore(it, DEBOUNCE_TIME, {
+//                Log.i(TAG, "MainScreen: card removed")
+//                mainViewModel.setMifareTransactionStatus(isComplete = false)
+//                mainViewModel.tagRemoved()
+//                mainViewModel.setMessageCode(CODE_TAP_CARD)
+//            }, Handler(Looper.getMainLooper())
+//            )
+//        }
+//    }
+     */
+
 
     Box(
         modifier = Modifier
@@ -141,11 +174,27 @@ fun MainScreen(mainViewModel: MainViewModel, nfcManager: NFCManager) {
             mainViewModel.setAccess(isChecked)
         }
 
-        EditableTextField(modifier = Modifier.align(Alignment.BottomCenter))
+        if (!access) {
+            EditableTextField(modifier = Modifier.align(Alignment.BottomCenter), mainViewModel)
+        }
+    }
+}
 
-//        if (!access) {
-//            EditableTextField(modifier = Modifier.align(Alignment.BottomCenter))
-//        }
+private fun cardPolling(
+    mainViewModel: MainViewModel,
+    tag: Tag?,
+    context: Context,
+    taskJob: MutableState<Job?>,
+    coroutineScope: CoroutineScope
+) {
+    taskJob.value = coroutineScope.launch {
+        MifareClassicHelper.polling(mainViewModel, tag)
+
+        //wait 5 seconds to poll again
+        delay(5000)
+
+        //pass mainViewModel tag as it can change value
+        cardPolling(mainViewModel, mainViewModel.tag.value, context, taskJob, coroutineScope)
     }
 }
 
@@ -209,6 +258,14 @@ private fun getMessage(code: Int): Int {
 
         CODE_TAB_OPEN_ERROR -> {
             R.string.message_tab_open
+        }
+
+        CODE_NO_CARD -> {
+            R.string.message_no_card
+        }
+
+        CODE_NO_VAL -> {
+            R.string.message_enter_val
         }
 
         else -> {

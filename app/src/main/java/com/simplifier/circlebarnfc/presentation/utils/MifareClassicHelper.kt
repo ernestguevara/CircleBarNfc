@@ -4,6 +4,7 @@ import android.nfc.Tag
 import android.nfc.tech.MifareClassic
 import android.util.Log
 import com.simplifier.circlebarnfc.presentation.MainViewModel
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_CARD_CONNECTION
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_ERROR_READ
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_INVALID_ACCESS
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_TAP_CARD
@@ -24,6 +25,31 @@ object MifareClassicHelper {
             }
         }
         return mifareClassic
+    }
+
+    fun polling(mainViewModel: MainViewModel, tag: Tag?) {
+        if (tag != null) {
+            val mifareClassic = getMifareInstance(tag)
+
+            try {
+                mifareClassic.connect()
+                //do nothing as tag is present
+                Log.i(TAG, "handleMifareClassic: tag connected")
+            } catch (e: IOException) {
+                Log.i(TAG, "handleMifareClassic: IO Exception polling")
+                mainViewModel.setMessageCode(CODE_CARD_CONNECTION)
+                mainViewModel.tagRemoved()
+            } catch (e: Exception) {
+                Log.i(TAG, "Error reading data: ${e.message}")
+                mainViewModel.setMessageCode(CODE_ERROR_READ)
+            } finally {
+                mifareClassic.close()
+            }
+        } else {
+            //no tag
+            Log.i(TAG, "handleMifareClassic: no tag")
+            mainViewModel.tagRemoved()
+        }
     }
 
     fun handleMifareClassic(
@@ -53,7 +79,7 @@ object MifareClassicHelper {
                 } finally {
                     Log.i(TAG, "handleMifareClassic: transaction complete")
                     mifareClassic.close()
-                    mainViewModel.setMifareTransactionStatus(isComplete = true)
+//                    mainViewModel.setMifareTransactionStatus(isComplete = true)
                 }
             }
         }

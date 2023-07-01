@@ -8,7 +8,6 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
-import com.simplifier.circlebarnfc.byteArrayToDecimal
 import com.simplifier.circlebarnfc.domain.model.CustomerModel
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_BAL_INSUFFICIENT
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_CARD_INVALID
@@ -17,15 +16,16 @@ import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_EMPTY
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_ERROR_READ
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_INCORRECT_ACCESS
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_MAX_BAL
+import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_NO_CARD
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_OPENING_TAB
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_TAB_OPEN_ERROR
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_TAP_CARD
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_THANK_YOU
 import com.simplifier.circlebarnfc.presentation.utils.Constants.CODE_WELCOME
+import com.simplifier.circlebarnfc.presentation.utils.Constants.MAX_BALANCE
 import com.simplifier.circlebarnfc.presentation.utils.ConversionHelper
 import com.simplifier.circlebarnfc.presentation.utils.ConversionHelper.bytesToHexStringWithSpace
-import com.simplifier.circlebarnfc.presentation.utils.ConversionHelper.fillByteArray
-import com.simplifier.circlebarnfc.presentation.utils.ConversionHelper.stringToHexByteArray
+import com.simplifier.circlebarnfc.presentation.utils.ConversionHelper.hexByteArrayToDecimal
 import com.simplifier.circlebarnfc.presentation.utils.MifareClassicHelper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,6 +58,7 @@ class MainViewModel : ViewModel() {
     val transactionStatus: StateFlow<Boolean> = _transactionStatus.asStateFlow()
 
     private var customerModel = CustomerModel()
+    private lateinit var mifareClassic: MifareClassic
 
     fun setIntent(intent: Intent) {
         if (intent.action == NfcAdapter.ACTION_TAG_DISCOVERED) {
@@ -113,8 +114,8 @@ class MainViewModel : ViewModel() {
         _isAccess.value = isAccess
     }
 
-    fun setUser(mifareClassic: MifareClassic) {
-        getCustomerInfo(mifareClassic)
+    fun setUser() {
+        getCustomerInfo()
         _customerDetails.value = customerModel
     }
 
@@ -132,10 +133,10 @@ class MainViewModel : ViewModel() {
         Log.i(TAG, "authenticate: keyA: ${bytesToHexStringWithSpace(key.value.first)} " +
                     "keyB ${bytesToHexStringWithSpace(key.value.second)}")
 
-        val mifareClassic = MifareClassicHelper.getMifareInstance(tag)
+        mifareClassic = MifareClassicHelper.getMifareInstance(tag)
 
         MifareClassicHelper.handleMifareClassic(this, mifareClassic) {
-            getCustomerInfo(mifareClassic)
+            getCustomerInfo()
 
             val allPropertiesFilled = checkCustomerFields(customerModel)
 
@@ -143,7 +144,7 @@ class MainViewModel : ViewModel() {
 
             if (checkCustomerFields(customerModel)) {
                 setMessageCode()
-                checkTransaction(mifareClassic)
+                checkTransaction()
             } else {
                 setMessageCode(CODE_ERROR_READ)
                 setAuthentication(false)
@@ -151,7 +152,7 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    private fun getCustomerInfo(mifareClassic: MifareClassic) {
+    private fun getCustomerInfo() {
         val keys = key.value
 
         customerModel.apply {
@@ -201,24 +202,21 @@ class MainViewModel : ViewModel() {
 
     }
 
-    private fun checkTransaction(
-        mifareClassic: MifareClassic
-    ) {
+    private fun checkTransaction() {
         when (customerModel.customerFlag) {
             FLAG_LOGGED_OUT -> {
                 Log.i(TAG, "checkTransaction: user is logged out")
                 if (isAccess.value) {
                     Log.i(TAG, "checkTransaction: login the user")
                     if (changeValueBlock(
-                            mifareClassic,
                             BALANCE_SECTOR,
-                            3000,
+                            30000,
                             false
                         )
                     ) {
-                        changeFlag(mifareClassic, FLAG_LOGGED_IN)
-                        changeValueBlock(mifareClassic, VISIT_SECTOR, 1)
-                        setUser(mifareClassic)
+                        changeFlag(FLAG_LOGGED_IN)
+                        changeValueBlock( VISIT_SECTOR, 1)
+                        setUser()
                         setMessageCode(CODE_WELCOME)
                     }
                 } else {
@@ -231,11 +229,11 @@ class MainViewModel : ViewModel() {
                 Log.i(TAG, "checkTransaction: user is logged in")
                 if (isAccess.value) {
                     Log.i(TAG, "checkTransaction: will logout")
-                    changeFlag(mifareClassic, FLAG_LOGGED_OUT)
+                    changeFlag(FLAG_LOGGED_OUT)
                     setMessageCode(CODE_THANK_YOU)
                 } else {
                     Log.i(TAG, "checkTransaction: will open the user tab")
-                    changeFlag(mifareClassic, FLAG_OPEN_TAB)
+                    changeFlag(FLAG_OPEN_TAB)
                     setMessageCode(CODE_OPENING_TAB)
                 }
             }
@@ -248,14 +246,13 @@ class MainViewModel : ViewModel() {
                 } else {
                     Log.i(TAG, "checkTransaction: open tab will change to login")
                     if (changeValueBlock(
-                            mifareClassic,
                             BALANCE_SECTOR,
-                            5000,
+                            50000,
                             false
                         )
                     ) {
-                        changeFlag(mifareClassic, FLAG_LOGGED_IN)
-                        setUser(mifareClassic)
+                        changeFlag(FLAG_LOGGED_IN)
+                        setUser()
                         setMessageCode(CODE_CLOSE_TAB)
                     }
                 }
@@ -268,7 +265,7 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    private fun changeFlag(mifareClassic: MifareClassic, flag: Int) {
+    private fun changeFlag(flag: Int) {
         val blockIndex = STORAGE_BLOCK
         val backupIndex = BACKUP_BLOCK
 
@@ -312,13 +309,12 @@ class MainViewModel : ViewModel() {
             //write to backup index
             mifareClassic.transfer(backupAddress)
 
-            Log.i(TAG, "changeFlag value is ${byteArrayToDecimal(mifareClassic.readBlock(blockAddress))}" +
-                    "\n backup value is ${byteArrayToDecimal(mifareClassic.readBlock(backupAddress))}")
+            Log.i(TAG, "changeFlag value is ${hexByteArrayToDecimal(mifareClassic.readBlock(blockAddress))}" +
+                    "\n backup value is ${hexByteArrayToDecimal(mifareClassic.readBlock(backupAddress))}")
         }
     }
 
     private fun changeValueBlock(
-        mifareClassic: MifareClassic,
         sectorIndex: Int,
         value: Int,
         increment: Boolean = true
@@ -333,12 +329,12 @@ class MainViewModel : ViewModel() {
         if (mifareClassic.authenticateSectorWithKeyB(sectorIndex, key.value.second)) {
 
             // Read the block data
-            val valueBlockVal = byteArrayToDecimal(mifareClassic.readBlock(blockAddress))
+            val valueBlockVal = hexByteArrayToDecimal(mifareClassic.readBlock(blockAddress))
 
             Log.i(TAG, "readDataBlock success data is ${bytesToHexStringWithSpace(mifareClassic.readBlock(blockAddress))} "
-                    + "\n decimal value is ${byteArrayToDecimal(mifareClassic.readBlock(blockAddress))}")
+                    + "\n decimal value is ${hexByteArrayToDecimal(mifareClassic.readBlock(blockAddress))}")
 
-            if (increment && valueBlockVal + value > 1000000) {
+            if (increment && valueBlockVal + value > MAX_BALANCE) {
                 //higher than threshold
                 Log.i(TAG, "changeValueBlock: Maximum Balance Reached")
                 setMessageCode(CODE_MAX_BAL)
@@ -364,8 +360,8 @@ class MainViewModel : ViewModel() {
 
                 Log.i(TAG, "changeValueBlock: increment: $increment success " +
                         "\n old value $valueBlockVal" +
-                        "\n new value ${byteArrayToDecimal(mifareClassic.readBlock(blockAddress))}" +
-                        "\n backup value ${byteArrayToDecimal(mifareClassic.readBlock(backupAddress))}")
+                        "\n new value ${hexByteArrayToDecimal(mifareClassic.readBlock(blockAddress))}" +
+                        "\n backup value ${hexByteArrayToDecimal(mifareClassic.readBlock(backupAddress))}")
                 return true
             }
         }
@@ -387,9 +383,19 @@ class MainViewModel : ViewModel() {
         return customerModel.customerBalance
     }
 
-    //mifare polling functions
+    //mifare functions
     fun setMifareTransactionStatus(isComplete: Boolean = false) {
         _transactionStatus.value = isComplete
+    }
+
+    fun reload(value: Int) {
+        if(::mifareClassic.isInitialized) {
+            MifareClassicHelper.handleMifareClassic(this, mifareClassic) {
+                changeValueBlock(BALANCE_SECTOR, value, true)
+            }
+        } else {
+            setMessageCode(CODE_NO_CARD)
+        }
     }
 
     companion object {
