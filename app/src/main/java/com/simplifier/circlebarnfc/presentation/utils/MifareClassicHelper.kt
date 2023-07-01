@@ -45,10 +45,10 @@ object MifareClassicHelper {
                         Log.i(TAG, "handleMifareClassic: authentication failed")
                     }
                 } catch (e: IOException) {
-                    Log.i(TAG, "handleMifareClassic: IO Exception transaction")
-                    mainViewModel.setMessageCode(CODE_TAP_CARD)
+                    Log.i(TAG, "handleMifareClassic: IO Exception transaction ${e.message}")
+                    mainViewModel.setMessageCode(CODE_ERROR_READ)
                 } catch (e: Exception) {
-                    Log.i(TAG, "handleMifareClassic: Exception transaction")
+                    Log.i(TAG, "handleMifareClassic: Exception transaction ${e.message}")
                     mainViewModel.setMessageCode(CODE_ERROR_READ)
                 } finally {
                     Log.i(TAG, "handleMifareClassic: transaction complete")
