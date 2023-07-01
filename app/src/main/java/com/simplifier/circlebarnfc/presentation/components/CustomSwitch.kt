@@ -52,6 +52,7 @@ fun CustomSwitch(
     iconInnerPadding: Dp = 4.dp,
     thumbSize: Dp = 24.dp,
     textArray: List<String>,
+    modifier: Modifier = Modifier,
     onCheckedChange: (Boolean) -> Unit
 ) {
 
@@ -69,7 +70,7 @@ fun CustomSwitch(
     val alignment by animateAlignmentAsState(if (isChecked) 1f else -1f)
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .background(
                 Color.White,
                 shape = RoundedCornerShape(8.dp)
