@@ -85,6 +85,28 @@ class MainViewModel : ViewModel() {
         }
     }
 
+    fun setIntent(tag: Tag?) {
+        if (_tag.value == null) {
+            Log.i(TAG, "setIntent: no tag found will proceed")
+            // NFC card is discovered
+            // Handle your NFC operations here
+
+            //Check if MifareClassic Card
+            if (tag?.techList?.contains(MifareClassic::class.java.name) == true) {
+                setTag(tag)
+            } else {
+                viewModelScope.launch {
+                    setMessageCode(CODE_CARD_INVALID)
+                    delay(2000)
+                    setMessageCode(CODE_TAP_CARD)
+                }
+                Log.i(TAG, "setIntent: not a mifare classic card")
+            }
+        } else {
+            Log.i(TAG, "setIntent: tag found wont do anything")
+        }
+    }
+
     private fun setTag(tag: Tag?) {
         _tag.value = tag
     }
