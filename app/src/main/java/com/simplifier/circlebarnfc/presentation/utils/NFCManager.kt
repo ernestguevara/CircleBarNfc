@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.nfc.NfcAdapter
 import android.nfc.NfcAdapter.OnTagRemovedListener
+import android.nfc.NfcAdapter.ReaderCallback
 import android.nfc.Tag
 import android.os.Handler
 import android.util.Log
@@ -25,6 +26,20 @@ class NFCManager(
 
     private val TAG = "ernesthor24 NFCManager"
     private var nfcAdapter: NfcAdapter? = null
+
+    fun enableReaderMode(readerCallback: ReaderCallback) {
+        nfcAdapter = NfcAdapter.getDefaultAdapter(context)
+
+        if (nfcAdapter != null) {
+            nfcAdapter!!.enableReaderMode(activity, readerCallback, getNFCFlags(), null)
+        }
+    }
+
+    fun disableReaderMode() {
+        if (nfcAdapter != null) {
+            nfcAdapter!!.disableReaderMode(activity)
+        }
+    }
 
     fun checkNfcEnabled() {
         nfcAdapter = NfcAdapter.getDefaultAdapter(context)
@@ -123,5 +138,13 @@ class NFCManager(
 
     fun ignore(tag: Tag, timeMs: Int, tagRemovedListener: OnTagRemovedListener, handler: Handler) {
         nfcAdapter!!.ignore(tag, timeMs, tagRemovedListener, handler)
+    }
+
+    public fun getNFCFlags(): Int {
+        return NfcAdapter.FLAG_READER_NFC_A or
+                NfcAdapter.FLAG_READER_NFC_B or
+                NfcAdapter.FLAG_READER_NFC_F or
+                NfcAdapter.FLAG_READER_NFC_V or
+                NfcAdapter.FLAG_READER_NFC_BARCODE //or NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK
     }
 }
