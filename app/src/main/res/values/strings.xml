@@ -14,6 +14,9 @@
     <string name="label_no_nfc">No NFC</string>
     <string name="label_enable_nfc">Enable NFC</string>
 
+    <string name="label_reload_placeholder">Reload here!</string>
+    <string name="label_reload">Reload</string>
+
     //message
     <string name="message_tap_card">Please Tap Card</string>
     <string name="message_card_connection">Please check card connection</string>
@@ -28,6 +31,8 @@
     <string name="message_opening_tab">Opening your tab…\nBalance: %.2f</string>
     <string name="message_closing_tab">Bill\'s settled</string>
     <string name="message_tab_open">Please settle the bill, tab\'s open</string>
+    <string name="message_no_card">No card present</string>
+    <string name="message_enter_val">Enter value</string>
 
     <string name="message_no_nfc">Your device does not support NFC</string>
     <string name="message_enable_nfc">Please enable NFC to use this feature.</string>
